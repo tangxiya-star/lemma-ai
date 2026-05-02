@@ -673,16 +673,18 @@ function handleEvent(
       }
       break;
 
-    case "tool_end":
+    case "tool_end": {
+      const okEv = ev as Extract<AgentEvent, { type: "tool_end"; ok: true }>;
+      const failEv = ev as Extract<AgentEvent, { type: "tool_end"; ok: false }>;
       if (ev.ok) {
         pushLine("ok", `✓ ${ev.tool}${ev.persona ? ` · ${ev.persona}` : ""}`);
         if (ev.persona) {
-          setPersonaStates((s) => updateOnToolEnd(s, ev.persona!, ev.tool, ev.result, ev.shotIndex));
+          setPersonaStates((s) => updateOnToolEnd(s, ev.persona!, ev.tool, okEv.result, ev.shotIndex));
         }
       } else {
         pushLine(
           "warn",
-          `⚠ ${ev.tool} failed — ${ev.error}${ev.issues ? ` [${ev.issues.join("; ")}]` : ""}`
+          `⚠ ${ev.tool} failed — ${failEv.error}${failEv.issues ? ` [${failEv.issues.join("; ")}]` : ""}`
         );
         if (ev.persona) {
           setPersonaStates((s) => ({
@@ -692,6 +694,7 @@ function handleEvent(
         }
       }
       break;
+    }
 
     case "reasoning":
       pushLine("muted", `  💭 ${ev.text}`);

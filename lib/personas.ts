@@ -135,6 +135,29 @@ function airbnb(id: string): string {
   return `https://a0.muscache.com/im/pictures/hosting/Hosting-1313306687285416653/original/${id}.jpeg?im_w=720`;
 }
 
+// Listing-level metadata for Bayview Retreat. The Director Agent reads this
+// alongside photo analysis to propose target personas — description text and
+// amenity tags are the highest-quality signal a host curates themselves on
+// Airbnb / Hostaway / Lodgify.
+export const BAYVIEW_LISTING = {
+  name: "Bayview Retreat",
+  location: "Mendocino, California",
+  description:
+    "A quiet bayfront retreat tucked into the Mendocino cliffs. Wake up to sunlight on the bay, work from the daylit corner, and end the day by the fireplace. Hotel-grade linens, fast Wi-Fi, and a fully-equipped kitchen. Ideal for a slow weekend, a focused work week, or a low-key family stay.",
+  amenities: [
+    "ocean_view",
+    "fireplace",
+    "fast_wifi",
+    "workspace_desk",
+    "in_unit_laundry",
+    "fully_equipped_kitchen",
+    "blackout_curtains",
+    "self_check_in",
+    "hotel_linens",
+    "free_parking",
+  ],
+};
+
 export function findPhoto(hint: string) {
   return BAYVIEW_PHOTOS.find((p) => p.name.startsWith(hint));
 }
