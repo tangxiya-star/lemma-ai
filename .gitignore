@@ -1,0 +1,9 @@
+node_modules
+.next
+.DS_Store
+*.log
+.env*
+
+# Local-only AI tooling configs (may contain MCP service keys)
+.mcp.json
+.claude/settings.local.json

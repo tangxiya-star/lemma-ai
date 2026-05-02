@@ -1,0 +1,102 @@
+// Butterbase schema for Lemma. Mirrors PRD §7.2.
+// Tables are provisioned via Butterbase MCP; types here are the source of
+// truth for API client calls.
+
+export type Persona = "family" | "solo" | "couple" | "business";
+
+export type JobStatus =
+  | "queued"
+  | "analyzing"
+  | "scripting"
+  | "rendering"
+  | "concatenating"
+  | "succeeded"
+  | "failed";
+
+export type User = {
+  id: string;
+  email: string;
+  created_at: string;
+};
+
+export type Listing = {
+  id: string;
+  user_id: string;
+  name: string;
+  vibe: string;
+  default_persona: Persona | null;
+  created_at: string;
+};
+
+export type Photo = {
+  id: string;
+  listing_id: string;
+  s3_url: string;
+  order: number;
+};
+
+export type Shot = {
+  index: number;
+  reference_photo: string;
+  duration_seconds: number;
+  camera: string;
+  description: string;
+  voiceover: string;
+  video_url?: string;
+};
+
+export type AgentTraceEvent = {
+  ts: number;
+  level: "info" | "tool" | "success" | "warn" | "error";
+  message: string;
+  tool?: string;
+  data?: unknown;
+};
+
+export type GenerationJob = {
+  id: string;
+  listing_id: string;
+  status: JobStatus;
+  personas: Persona[];
+  agent_trace: AgentTraceEvent[];
+  created_at: string;
+};
+
+export type Video = {
+  id: string;
+  listing_id: string;
+  persona: Persona;
+  format: "16:9" | "9:16" | "1:1";
+  s3_url: string;
+  duration_seconds: number;
+  shots: Shot[];
+  created_at: string;
+};
+
+export type WidgetView = {
+  id: string;
+  listing_id: string;
+  persona_selected: Persona | null;
+  timestamp: string;
+  user_agent: string;
+};
+
+export const TABLES = {
+  users: "users",
+  listings: "listings",
+  photos: "photos",
+  generation_jobs: "generation_jobs",
+  videos: "videos",
+  widget_views: "widget_views",
+} as const;
+
+export type TableName = (typeof TABLES)[keyof typeof TABLES];
+
+export type TableRow = {
+  users: User;
+  listings: Listing;
+  photos: Photo;
+  generation_jobs: GenerationJob;
+  videos: Video;
+  widget_views: WidgetView;
+};
