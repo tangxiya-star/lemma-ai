@@ -469,7 +469,7 @@ Write 4 shots.`,
 // ===========================================================================
 
 function ev<E extends Omit<AgentEvent, "ts">>(e: E): AgentEvent {
-  return { ...e, ts: Date.now() } as AgentEvent;
+  return { ...e, ts: Date.now() } as unknown as AgentEvent;
 }
 
 function extractText(msg: Anthropic.Messages.Message): string {
