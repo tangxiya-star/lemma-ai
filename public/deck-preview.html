@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lemma · Deck preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --ink: #f4efe6;
+    --bone: #c9c1b4;
+    --bone-dim: #8a8479;
+    --gold: #c9a66b;
+    --rule: rgba(244, 239, 230, 0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; }
+
+  .slide {
+    width: 100vw;
+    aspect-ratio: 16 / 9;
+    max-height: 100vh;
+    padding: 64px 88px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--bone-dim);
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: clamp(64px, 8vw, 124px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 32px;
+  }
+  h1 em { font-style: italic; font-weight: 400; }
+
+  .rule {
+    border-top: 1px solid var(--rule);
+    margin: 12px 0 32px;
+  }
+
+  /* ----- SLIDE 1 (TEAM) ----- */
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 56px;
+    flex: 1;
+  }
+  .divider {
+    background: var(--rule);
+  }
+  .member .num {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    color: var(--gold);
+    font-size: 16px;
+    margin-bottom: 24px;
+  }
+  .member h2 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 44px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .member .school {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    color: var(--gold);
+    font-size: 18px;
+    margin-bottom: 28px;
+  }
+  .member .bio {
+    color: var(--bone);
+    font-size: 16px;
+    line-height: 1.55;
+    margin-bottom: 28px;
+  }
+  .member .fit {
+    color: var(--bone-dim);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.6;
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+  }
+
+  .footer {
+    position: absolute;
+    left: 88px;
+    bottom: 28px;
+    right: 88px;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--bone-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ----- SLIDE 2 (PRODUCT) ----- */
+  .one-liner {
+    color: var(--bone);
+    font-style: italic;
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    line-height: 1.5;
+    max-width: 1100px;
+    margin-bottom: 56px;
+  }
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 64px;
+    flex: 1;
+  }
+  .col .lbl {
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 18px;
+  }
+  .col h3 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 44px;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+  .col h3 em { font-style: italic; }
+  .col p {
+    color: var(--bone);
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  /* slide 2 head: title left, italic right (like screenshot) */
+  .slide2-head {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+  }
+  .slide2-head h1 { margin-bottom: 16px; }
+
+  @media (max-width: 1100px) {
+    .slide { padding: 40px 48px; }
+    h1 { font-size: 56px; }
+    .member h2, .col h3 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SLIDE 1 — TEAM ============ -->
+<section class="slide">
+  <div class="label">The Team</div>
+  <h1>Built by <em>builders.</em></h1>
+  <div class="rule"></div>
+
+  <div class="team-grid">
+    <div class="member">
+      <div class="num">01</div>
+      <h2>Xiya Tang</h2>
+      <div class="school">Rochester Institute of Technology — HCI</div>
+      <div class="bio">
+        Design Engineer · Builder · 2× Hackathon Winner<br>
+        Ships agentic workflows where design, code, and AI orchestration meet.
+      </div>
+      <div class="fit">
+        Team-problem fit: builder with an HCI lens on AI agents —
+        the trace isn't just engineering, it's the interface.
+        Every reasoning step is designed to be felt, not just run.
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="member">
+      <div class="num">02</div>
+      <h2>Shourya Premkumar</h2>
+      <div class="school">American High School</div>
+      <div class="bio">
+        Founder, STEAD Marketing<br>
+        AI-driven online marketing optimization for brands
+      </div>
+      <div class="fit">
+        Team-problem fit: direct experience driving brand conversions
+        through targeted content strategy.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Lemma · 2026</span>
+    <span>Slide 1 / 3</span>
+  </div>
+</section>
+
+
+<!-- ============ SLIDE 2 — PRODUCT ============ -->
+<section class="slide">
+  <div class="label">Product Overview</div>
+  <div class="slide2-head">
+    <h1>One listing.&nbsp;&nbsp;<em>Many stories.</em></h1>
+  </div>
+  <div class="rule"></div>
+
+  <p class="one-liner">
+    Lemma is a persona-aware video agent for property listings.
+    Real estate agents and short-term rental hosts use Lemma to turn
+    one upload into four cinematic films — each tuned to a different
+    buyer. Embed one line of JS; every visitor sees the version
+    made for them.
+  </p>
+
+  <div class="columns">
+    <div class="col">
+      <div class="lbl">The Problem</div>
+      <h3>One ad.<br><em>Every viewer.</em></h3>
+      <p>
+        Every property listing — for sale or for stay — ships one generic
+        video that tries to speak to families, couples, investors, and
+        remote workers all at once. Most viewers see content that has
+        nothing to do with how they'd actually live in the space.
+        Conversion leaks at the last mile.
+      </p>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="col">
+      <div class="lbl">The Opportunity</div>
+      <h3>Same space.<br><em>Different story.</em></h3>
+      <p>
+        Two markets, one wedge: real estate agents fighting for buyer
+        attention, and short-term rental hosts converting on their own
+        sites — Hostfully, Lodgify, Squarespace, Wix. Both ship one
+        generic video today. Both want the right one. Lemma is the
+        agent that delivers it.
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Lemma · 2026</span>
+    <span>Slide 2 / 3</span>
+  </div>
+</section>
+
+<!-- ============ SLIDE 3 — DEMO ============ -->
+<section class="slide slide-demo">
+  <div class="label">Demo</div>
+  <h1>See it <em>run.</em></h1>
+  <div class="rule"></div>
+
+  <div class="video-wrap">
+    <video
+      src="/demo-videos/final-2min.mp4"
+      controls
+      playsinline
+      preload="metadata"
+      poster="/demo-videos/family_cover.jpg"
+    ></video>
+  </div>
+
+  <div class="footer">
+    <span>Lemma · 2026</span>
+    <span>Slide 3 / 3</span>
+  </div>
+</section>
+
+<style>
+  .slide-demo .video-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 12px;
+    padding-bottom: 36px;
+  }
+  .slide-demo video {
+    width: 100%;
+    max-width: 1400px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 18px;
+    background: #111;
+    box-shadow: 0 24px 80px -20px rgba(0,0,0,0.8), 0 0 0 1px var(--rule);
+  }
+</style>
+
+</body>
+</html>

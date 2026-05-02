@@ -21,22 +21,35 @@ const samplePhotos = [
   { src: `${AIRBNB}/5679b926-bceb-4af5-b912-c9847bb8444a.jpeg?im_w=720`, name: "IMG_4449.jpg" },
 ];
 
-type SuggestedPersona = {
+export type Archetype = "family" | "couple" | "remote" | "business";
+const ARCHETYPE_LABEL: Record<Archetype, string> = {
+  family: "Family",
+  couple: "Couple",
+  remote: "Remote",
+  business: "Business",
+};
+function archetypeLabel(a: Archetype): string {
+  return ARCHETYPE_LABEL[a] ?? a;
+}
+export type SuggestedPersona = {
   id: string;
   name: string;
   desc: string;
   why: string;
+  archetype: Archetype;
 };
 
 export default function NewListing() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [usingSamples, setUsingSamples] = useState(true);
-  const [name, setName] = useState("Bayview Retreat");
-  const [vibe, setVibe] = useState("Cozy cabin · Ocean view");
-  const [location, setLocation] = useState("Mendocino, CA");
+  const [name, setName] = useState("The Sunset Studio");
+  const [vibe, setVibe] = useState("Compact city apartment · in-unit laundry");
+  const [location, setLocation] = useState("San Francisco, CA");
   const [suggestions, setSuggestions] = useState<SuggestedPersona[]>([]);
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([]);
+  const [observed, setObserved] = useState<string>("");
+  const [photosSeen, setPhotosSeen] = useState<number>(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -58,13 +71,16 @@ export default function NewListing() {
           name,
           vibe,
           location,
-          features: ["natural_light", "ocean_view", "fireplace", "deck"],
-          photoSummary: `${samplePhotos.length} photos: living rooms, bedrooms, kitchen, bathroom, exterior`,
+          // Don't pre-seed features — let the vision model report what it sees.
+          features: [],
+          photoUrls: samplePhotos.map((p) => p.src),
         }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "analyze failed");
       setSuggestions(data.personas);
+      setObserved(String(data.observed || ""));
+      setPhotosSeen(Number(data.photosSeen || 0));
       setSelectedPersonas(data.personas.map((p: SuggestedPersona) => p.id));
     } catch (e: any) {
       setAnalyzeError(String(e?.message || e));
@@ -81,8 +97,27 @@ export default function NewListing() {
 
   function generate() {
     const jobId = `job-${Date.now()}`;
+
+    // Selected bespoke personas, deduped by archetype (first-wins) so each
+    // film maps to a unique cinematic base. The agent uses `archetype` for
+    // prompting/shot template; UI shows `name` + `desc` + `why` (the brief).
+    const seen = new Set<Archetype>();
+    const chosen = suggestions
+      .filter((p) => selectedPersonas.includes(p.id))
+      .filter((p) => {
+        if (seen.has(p.archetype)) return false;
+        seen.add(p.archetype);
+        return true;
+      });
+
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`lemma:job:${jobId}`, JSON.stringify(chosen));
+    }
+    const archetypes = chosen.map((p) => p.archetype).join(",");
     router.push(
-      `/dashboard/generate/${jobId}?listingId=demo-123&name=${encodeURIComponent(name)}`
+      `/dashboard/generate/${jobId}?listingId=demo-123&name=${encodeURIComponent(
+        name
+      )}&personas=${archetypes}`
     );
   }
 
@@ -100,7 +135,7 @@ export default function NewListing() {
       </div>
       <h1 className="font-display text-5xl tracking-tight max-w-3xl mb-12">
         Upload your home.<br />
-        <em className="italic text-bone/85">We'll write four films.</em>
+        <em className="italic text-bone/85">The agent picks the personas.</em>
       </h1>
 
       <div className="grid md:grid-cols-[1.2fr_1fr] gap-10">
@@ -223,13 +258,25 @@ export default function NewListing() {
             </div>
             <p className="text-xs text-bone/55 mb-4 leading-relaxed">
               The Director Agent reads your photos + vibe and proposes traveler types
-              tailored to <span className="text-bone/85">this</span> home. Toggle off
-              any that don't fit.
+              tailored to <span className="text-bone/85">this</span> home. Each maps to a
+              cinematic archetype <span className="text-bone/70">(Family · Couple · Remote · Business)</span>
+              {" "}— shown as a tag on each card.
             </p>
 
             {analyzeError && (
               <div className="mb-3 px-3 py-2 rounded-lg border border-amber-300/30 bg-amber-300/[0.04] text-xs text-amber-200/80">
                 {analyzeError}
+              </div>
+            )}
+
+            {observed && (
+              <div className="mb-3 px-3 py-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04]">
+                <div className="text-[9px] uppercase tracking-[0.28em] text-emerald-200/70 mb-1">
+                  ⦿ Agent observed · {photosSeen} photos
+                </div>
+                <div className="text-[12px] italic text-bone/80 leading-snug">
+                  {observed}
+                </div>
               </div>
             )}
 
@@ -261,7 +308,14 @@ export default function NewListing() {
                         }`}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-display text-sm leading-snug">{p.name}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-display text-sm leading-snug">{p.name}</div>
+                            {p.archetype && (
+                              <span className="text-[8.5px] uppercase tracking-[0.22em] text-bone/55 px-1.5 py-0.5 rounded border border-bone/20">
+                                {archetypeLabel(p.archetype)}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-bone/55 mt-0.5">{p.desc}</div>
                           <div className="text-[10px] text-cream/55 mt-1.5 flex items-start gap-1.5 italic">
                             <Sparkles className="w-2.5 h-2.5 mt-0.5 shrink-0" />

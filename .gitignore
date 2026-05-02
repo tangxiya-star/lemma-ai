@@ -7,3 +7,15 @@ node_modules
 # Local-only AI tooling configs (may contain MCP service keys)
 .mcp.json
 .claude/settings.local.json
+.claude/
+
+# Build artifacts and large video intermediates — keep only the final
+# persona mp4s that the app serves (family/couple/remote/business).
+public/demo-videos/_raw/
+public/demo-videos/_build/
+public/demo-videos/_backup/
+public/demo-videos/_variants/
+public/demo-videos/shots/
+public/demo-videos/vo/
+public/demo-videos/final-2min.mp4
+tsconfig.tsbuildinfo

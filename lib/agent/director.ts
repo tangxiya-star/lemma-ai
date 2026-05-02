@@ -20,6 +20,7 @@
 // each event to the wire.
 
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import {
   PERSONAS,
   PersonaId,
@@ -30,10 +31,19 @@ import {
 import { generateShotForDemo, QaFailedError } from "../seedance/mock";
 import type { AgentEvent } from "./events";
 
-const MODEL = "claude-sonnet-4-6";
+// Multi-model orchestration:
+//   - Anthropic Claude → photo vision analysis (only it has the vision step)
+//   - Z.AI GLM-4.6     → fast structured text generation (briefs + shot scripts)
+// Each model used where it's strongest; trace shows both being invoked.
+const MODEL = process.env.CLAUDE_VISION_MODEL ?? "claude-sonnet-4-5";
+const ZAI_MODEL = "glm-4.6";
 const SHOTS_PER_PERSONA = 4;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const zai = new OpenAI({
+  apiKey: process.env.ZAI_API_KEY,
+  baseURL: "https://api.z.ai/api/paas/v4",
+});
 
 type SceneAnalysis = {
   rooms: string[];
@@ -115,14 +125,14 @@ export async function* runDirector(
   // Pause briefly so the user can register the analyze result before the
   // per-persona work begins. Without this, the trace jumps straight to
   // four parallel "BRIEFING" rows and the analyze step is invisible.
-  await new Promise((r) => setTimeout(r, 1500));
+  await new Promise((r) => setTimeout(r, 400));
 
   // === Stage 2-4: per-persona pipeline (parallel, staggered) ===============
   // We spawn each persona as its own async generator, then merge their events.
   // A small per-persona stagger gives the trace a visual rhythm — personas
   // peel off in sequence rather than all hitting BRIEFING at once.
   const personaGens = input.personas.map((id, i) =>
-    staggered(runPersona(input, analysis, PERSONAS[id]), i * 1500)
+    staggered(runPersona(input, analysis, PERSONAS[id]), i * 400)
   );
 
   for await (const event of mergeGenerators(personaGens)) {
@@ -359,13 +369,17 @@ async function generatePersonaBrief(
   persona: PersonaSpec,
   analysis: SceneAnalysis
 ): Promise<{ brief: PersonaBrief; tokens: number }> {
-  const msg = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 400,
-    system: `You are the Lemma Director Agent's creative briefer.
-Return ONLY JSON with keys: angle (string), must_show (string[]), avoid (string[]), music_direction (string).
-Match the persona's voice. Be specific, not generic.`,
+  const res = await zai.chat.completions.create({
+    model: ZAI_MODEL,
+    response_format: { type: "json_object" },
+    temperature: 0.7,
     messages: [
+      {
+        role: "system",
+        content: `You are the Lemma Director Agent's creative briefer.
+Return ONLY JSON with keys: angle (string), must_show (string[] of 3-5 items), avoid (string[] of 2-3 items), music_direction (string).
+Match the persona's voice. Be specific, not generic.`,
+      },
       {
         role: "user",
         content: `Persona: ${persona.name}
@@ -384,14 +398,15 @@ Write the brief.`,
       },
     ],
   });
+  const text = res.choices[0]?.message?.content ?? "";
   return {
-    brief: parseJson<PersonaBrief>(extractText(msg), {
+    brief: parseJson<PersonaBrief>(text, {
       angle: persona.mood,
       must_show: [],
       avoid: [],
       music_direction: "ambient",
     }),
-    tokens: msg.usage.input_tokens + msg.usage.output_tokens,
+    tokens: res.usage?.total_tokens ?? 0,
   };
 }
 
@@ -404,17 +419,21 @@ async function writeShotScript(
     .map((p) => `- ${p.name}${p.tag ? ` (${p.tag})` : ""}`)
     .join("\n");
 
-  const msg = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 800,
-    system: `You write 4-shot scripts for short cinematic listing videos.
+  const res = await zai.chat.completions.create({
+    model: ZAI_MODEL,
+    response_format: { type: "json_object" },
+    temperature: 0.7,
+    messages: [
+      {
+        role: "system",
+        content: `You write 4-shot scripts for short cinematic listing videos.
 Return ONLY JSON: { "shots": [{ "index": 0, "photo_name": "IMG_4412.jpg", "description": "...", "camera": "..." }, ...] }
 - index is 0-3
 - photo_name MUST be from the catalog provided
 - description is one sentence about what the shot shows
 - camera is one short phrase (e.g. "slow dolly forward")
 Pick photos that best serve the persona — different personas should pick different photos.`,
-    messages: [
+      },
       {
         role: "user",
         content: `Persona angle: ${brief.angle}
@@ -438,9 +457,10 @@ Write 4 shots.`,
     })),
   };
 
+  const text = res.choices[0]?.message?.content ?? "";
   return {
-    script: parseJson<ShotScript>(extractText(msg), fallback),
-    tokens: msg.usage.input_tokens + msg.usage.output_tokens,
+    script: parseJson<ShotScript>(text, fallback),
+    tokens: res.usage?.total_tokens ?? 0,
   };
 }
 

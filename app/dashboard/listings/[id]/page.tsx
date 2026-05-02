@@ -284,21 +284,49 @@ function ListingAnalytics({ name }: { name: string }) {
 
   useEffect(() => {
     let alive = true;
-    async function tick() {
+    let ws: WebSocket | null = null;
+
+    async function init() {
       try {
         const r = await fetch("/api/widget/stats?hours=24", { cache: "no-store" });
         const data = await r.json();
         if (!alive) return;
         setStats(data);
-        setPulse(true);
-        setTimeout(() => setPulse(false), 600);
+      } catch {}
+
+      try {
+        const tok = await fetch("/api/realtime/token").then((r) => r.json());
+        if (!alive || !tok.url) return;
+        ws = new WebSocket(tok.url);
+        ws.onopen = () => {
+          ws?.send(JSON.stringify({ type: "subscribe", table: "widget_views" }));
+        };
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "change" && msg.op === "INSERT" && msg.record) {
+            const persona = msg.record.persona_selected;
+            setStats((prev) => {
+              if (!prev) return prev;
+              const counts = { ...prev.counts };
+              if (persona) counts[persona] = (counts[persona] || 0) + 1;
+              return {
+                ...prev,
+                total: prev.total + 1,
+                counts,
+                recent: [{ persona, ts: msg.record.timestamp || new Date().toISOString() }, ...prev.recent].slice(0, 20),
+              };
+            });
+            setPulse(true);
+            setTimeout(() => setPulse(false), 600);
+          }
+        };
       } catch {}
     }
-    tick();
-    const id = setInterval(tick, 4000);
+
+    init();
     return () => {
       alive = false;
-      clearInterval(id);
+      try { ws?.close(); } catch {}
     };
   }, []);
 
@@ -316,8 +344,9 @@ function ListingAnalytics({ name }: { name: string }) {
       <div className="flex items-start justify-between gap-6 flex-wrap mb-6">
         <div>
           <div className="text-[10px] uppercase tracking-[0.32em] text-bone/50 mb-2 flex items-center gap-2">
-            Live · last 24h
-            <span className={`inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 transition ${pulse ? "scale-150" : "scale-100"}`} />
+            Realtime · last 24h
+            <span className={`inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 transition ${pulse ? "scale-[2.5]" : "scale-100"}`} />
+            <span className="text-bone/30 normal-case tracking-normal text-[10px]">via Butterbase WebSocket</span>
           </div>
           <h3 className="font-display text-2xl">
             Who's <em className="italic">watching</em> {name}?

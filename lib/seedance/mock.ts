@@ -16,7 +16,7 @@ import { generateShot as realGenerateShot } from "./client";
 import type { GenerateShotInput, GenerateShotResult } from "./client";
 import type { PersonaId } from "../personas";
 
-const MOCK_LATENCY_MS = 1800;
+const MOCK_LATENCY_MS = 600;
 
 const PERSONA_VIDEO: Record<PersonaId, string> = {
   family: "/demo-videos/family.mp4",

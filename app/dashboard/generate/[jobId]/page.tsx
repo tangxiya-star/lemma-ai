@@ -9,12 +9,51 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import type { AgentEvent } from "@/lib/agent/events";
 import type { PersonaId } from "@/lib/personas";
 
-const PERSONA_ORDER: PersonaId[] = ["family", "couple", "remote", "business"];
-const PERSONA_LABEL: Record<PersonaId, string> = {
+const DEFAULT_ORDER: PersonaId[] = ["family", "couple", "remote", "business"];
+const ARCHETYPE_FALLBACK_LABEL: Record<PersonaId, string> = {
   family: "Family",
   couple: "Couple",
   remote: "Remote Worker",
   business: "Business",
+};
+
+// One row per generated film. `archetype` is the cinematic base the agent
+// uses internally; `displayName` + `brief` are the bespoke persona surfaced
+// to the host (and later to the traveler in the widget).
+type PersonaRow = {
+  archetype: PersonaId;
+  displayName: string;
+  brief?: string;
+};
+
+type Platform = {
+  id: string;
+  label: string;
+  ratio: "16:9" | "9:16" | "1:1";
+  uploadUrl: string;       // where the host completes the post
+  short: string;           // 1-line label e.g. "9:16"
+};
+const PLATFORMS: Platform[] = [
+  { id: "web",       label: "Web",            ratio: "16:9", short: "16:9", uploadUrl: ""                                  },
+  { id: "tiktok",    label: "TikTok",         ratio: "9:16", short: "9:16", uploadUrl: "https://www.tiktok.com/upload"      },
+  { id: "ig-reels",  label: "IG Reels",       ratio: "9:16", short: "9:16", uploadUrl: "https://www.instagram.com/"         },
+  { id: "ig-feed",   label: "IG Feed",        ratio: "1:1",  short: "1:1",  uploadUrl: "https://www.instagram.com/"         },
+  { id: "yt-shorts", label: "YouTube Shorts", ratio: "9:16", short: "9:16", uploadUrl: "https://www.youtube.com/upload"     },
+];
+const RATIO_CLASS: Record<Platform["ratio"], string> = {
+  "16:9": "aspect-video",
+  "9:16": "aspect-[9/16] max-h-[420px] mx-auto",
+  "1:1":  "aspect-square",
+};
+
+// Cached mp4 per archetype — kept in sync with /public/demo-videos and
+// lib/seedance/mock.ts. Lets the preview play immediately on persona_start
+// rather than waiting for the brief/script/QA trace to complete.
+const ARCHETYPE_VIDEO: Record<PersonaId, string> = {
+  family: "/demo-videos/family.mp4",
+  couple: "/demo-videos/couple.mp4",
+  remote: "/demo-videos/remote.mp4",
+  business: "/demo-videos/business.mp4",
 };
 const SHOTS_PER_PERSONA = 4;
 
@@ -48,6 +87,38 @@ export default function GeneratePage() {
   const listingName = searchParams.get("name") ?? "Bayview Retreat";
 
   const [personaStates, setPersonaStates] = useState(INITIAL_STATE);
+  const [personaRows, setPersonaRows] = useState<PersonaRow[]>(() =>
+    DEFAULT_ORDER.map((a) => ({ archetype: a, displayName: ARCHETYPE_FALLBACK_LABEL[a] }))
+  );
+  const [platform, setPlatform] = useState<Platform>(PLATFORMS[0]);
+  const [toast, setToast] = useState<string>("");
+  const [lightbox, setLightbox] = useState<{ url: string; title: string } | null>(null);
+
+  // Pull bespoke personas the host selected on /dashboard/new.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = sessionStorage.getItem(`lemma:job:${params.jobId}`);
+    if (!raw) return;
+    try {
+      const chosen = JSON.parse(raw) as Array<{
+        archetype: PersonaId;
+        name: string;
+        desc?: string;
+        why?: string;
+      }>;
+      if (Array.isArray(chosen) && chosen.length) {
+        setPersonaRows(
+          chosen.map((p) => ({
+            archetype: p.archetype,
+            displayName: p.name,
+            brief: p.why || p.desc,
+          }))
+        );
+      }
+    } catch {
+      /* fall through to defaults */
+    }
+  }, [params.jobId]);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [phase, setPhase] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -120,6 +191,14 @@ export default function GeneratePage() {
           <div className="text-xs text-bone/40 mt-1">{listingName}</div>
         </div>
         <div className="flex items-center gap-6">
+          {phase === "done" && (
+            <a
+              href="#embed"
+              className="text-[10px] uppercase tracking-[0.24em] px-3 py-1.5 rounded-full bg-cream text-ink hover:bg-white transition"
+            >
+              Get embed code →
+            </a>
+          )}
           <Stat label="elapsed" value={`${elapsed.toFixed(1)}s`} />
           <Stat label="tokens" value={fmtTokens(totalTokens)} />
           <span
@@ -139,14 +218,104 @@ export default function GeneratePage() {
         </div>
       </header>
 
+      {/* Format / share toolbar */}
+      <section className="px-8 pt-8 pb-3 max-w-7xl mx-auto">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-[10px] uppercase tracking-[0.32em] text-bone/40">
+            Reframe & share
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {PLATFORMS.map((p) => {
+              const on = platform.id === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setPlatform(p)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] tracking-wide ring-1 transition ${
+                    on
+                      ? "bg-cream text-ink ring-cream"
+                      : "ring-bone/20 text-bone/70 hover:text-cream hover:ring-bone/40"
+                  }`}
+                >
+                  {p.label}
+                  <span className={`ml-2 text-[9px] ${on ? "text-ink/60" : "text-bone/40"}`}>
+                    {p.short}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Persona tracks */}
-      <section className="px-8 pt-8 pb-6 max-w-7xl mx-auto">
+      <section className="px-8 pt-3 pb-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PERSONA_ORDER.map((id) => (
-            <PersonaTrack key={id} id={id} state={personaStates[id]} />
+          {personaRows.map((row) => (
+            <PersonaTrack
+              key={row.archetype}
+              id={row.archetype}
+              displayName={row.displayName}
+              brief={row.brief}
+              state={personaStates[row.archetype]}
+              platform={platform}
+              listingName={listingName}
+              onShared={(msg) => setToast(msg)}
+              onExpand={(url, title) => setLightbox({ url, title })}
+            />
           ))}
         </div>
       </section>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-cream text-ink text-xs shadow-lg"
+          onAnimationEnd={() => setToast("")}
+        >
+          {toast}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-8 cursor-zoom-out"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-[min(1100px,90vw)] max-h-[88vh]"
+          >
+            <video
+              src={lightbox.url}
+              autoPlay
+              loop
+              controls
+              playsInline
+              className="max-h-[88vh] max-w-full rounded-xl shadow-2xl"
+            />
+            <div className="absolute -top-8 left-0 text-xs uppercase tracking-[0.28em] text-bone/70">
+              {lightbox.title}
+            </div>
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute -top-10 right-0 text-bone/60 hover:text-cream text-sm"
+              aria-label="Close"
+            >
+              ✕ Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Embed code */}
+      {phase === "done" && (
+        <EmbedSection
+          listingId={listingId}
+          onCopied={() => setToast("Embed code copied")}
+        />
+      )}
 
       {/* Reasoning console */}
       <section className="px-8 pb-16 max-w-7xl mx-auto">
@@ -185,9 +354,60 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PersonaTrack({ id, state }: { id: PersonaId; state: PersonaState }) {
+function PersonaTrack({
+  id,
+  displayName,
+  brief,
+  state,
+  platform,
+  listingName,
+  onShared,
+  onExpand,
+}: {
+  id: PersonaId;
+  displayName: string;
+  brief?: string;
+  state: PersonaState;
+  platform: Platform;
+  listingName: string;
+  onShared: (msg: string) => void;
+  onExpand: (url: string, title: string) => void;
+}) {
   const isActive = state.status !== "queued" && state.status !== "done";
   const isDone = state.status === "done";
+
+  async function handleShare() {
+    if (!state.videoUrl) return;
+    const caption = `${listingName} — for ${displayName}.${brief ? "\n\n" + brief : ""}\n\n#lemma #stayfilm`;
+
+    // Try the native share sheet first (mobile / Safari) — picks up TikTok,
+    // IG, etc. as share targets directly.
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share({
+          title: `${displayName} · ${listingName}`,
+          text: caption,
+          url: state.videoUrl,
+        });
+        onShared(`Shared via system sheet`);
+        return;
+      } catch {
+        /* user cancelled or unsupported — fall through */
+      }
+    }
+
+    // Desktop fallback: copy caption to clipboard, open the platform's
+    // upload flow in a new tab. Host pastes caption + uploads the file.
+    try {
+      await navigator.clipboard.writeText(caption);
+    } catch {}
+    if (platform.uploadUrl) {
+      window.open(platform.uploadUrl, "_blank", "noopener,noreferrer");
+      onShared(`Caption copied · opening ${platform.label}`);
+    } else {
+      onShared(`Caption copied to clipboard`);
+    }
+  }
 
   return (
     <div
@@ -199,24 +419,52 @@ function PersonaTrack({ id, state }: { id: PersonaId; state: PersonaState }) {
           : "ring-bone/10 bg-black/30"
       }`}
     >
-      <div className="flex items-center justify-between">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-bone/60">
-          {PERSONA_LABEL[id]}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-[9px] uppercase tracking-[0.24em] text-cream/55 mb-1">
+            {ARCHETYPE_FALLBACK_LABEL[id]} archetype
+          </div>
+          <div className="font-display text-[19px] leading-[1.15] text-cream">
+            {displayName}
+          </div>
         </div>
         <StatusBadge state={state} />
       </div>
+      {brief && (
+        <div className="mt-2.5 text-[11px] italic text-bone/60 line-clamp-2 leading-snug">
+          {brief}
+        </div>
+      )}
 
       {/* Video preview / placeholder */}
-      <div className="mt-4 aspect-video rounded-lg overflow-hidden bg-black/60 ring-1 ring-white/5 relative">
-        {isDone && state.videoUrl ? (
-          <video
-            src={state.videoUrl}
-            className="w-full h-full object-cover"
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
+      <div
+        onClick={() => state.videoUrl && onExpand(state.videoUrl, `${displayName} · ${listingName}`)}
+        className={`mt-4 ${RATIO_CLASS[platform.ratio]} rounded-lg overflow-hidden bg-black/60 ring-1 ring-white/5 relative group ${
+          state.videoUrl ? "cursor-zoom-in" : ""
+        }`}
+      >
+        {state.videoUrl ? (
+          <>
+            <video
+              src={state.videoUrl}
+              className="w-full h-full object-cover pointer-events-none"
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+              <div className="px-3 py-1.5 rounded-full bg-cream/95 text-ink text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 3 21 3 21 9"/>
+                  <polyline points="9 21 3 21 3 15"/>
+                  <line x1="21" y1="3" x2="14" y2="10"/>
+                  <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+                Expand
+              </div>
+            </div>
+          </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-bone/30 text-[10px] uppercase tracking-[0.28em]">
             {state.status === "queued" ? "queued" : `shot ${state.currentShot + 1} / ${SHOTS_PER_PERSONA}`}
@@ -256,6 +504,20 @@ function PersonaTrack({ id, state }: { id: PersonaId; state: PersonaState }) {
           {state.failures} qa retry · self-corrected
         </div>
       )}
+
+      {state.videoUrl && (
+        <button
+          onClick={handleShare}
+          className="mt-3 w-full px-3 py-2 rounded-full bg-cream text-ink text-[11px] font-medium tracking-wide hover:bg-white transition flex items-center justify-center gap-1.5"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+          Share to {platform.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -278,6 +540,112 @@ function StatusBadge({ state }: { state: PersonaState }) {
 
 function Cursor() {
   return <span className="inline-block w-2 h-4 bg-cream/80 align-middle ml-1 animate-pulse" />;
+}
+
+// =========================================================================
+// Embed section — shown after generation completes. Gives the host the
+// one-line <script> tag and per-platform paste instructions (PRD §4.5).
+// =========================================================================
+
+const EMBED_PLATFORMS = [
+  {
+    id: "html",
+    label: "Custom HTML",
+    instr: "Paste anywhere inside your <body>. Loads async.",
+  },
+  {
+    id: "hostaway",
+    label: "Hostaway",
+    instr: "Listing → Settings → Custom HTML → paste in the Hero block.",
+  },
+  {
+    id: "lodgify",
+    label: "Lodgify",
+    instr: "Website Editor → Add Section → HTML/Embed → paste.",
+  },
+  {
+    id: "wordpress",
+    label: "WordPress",
+    instr: "Add a Custom HTML block to your listing page and paste.",
+  },
+];
+
+function EmbedSection({
+  listingId,
+  onCopied,
+}: {
+  listingId: string;
+  onCopied: () => void;
+}) {
+  const [tab, setTab] = useState(EMBED_PLATFORMS[0].id);
+  const snippet = `<!-- Lemma adaptive video widget -->\n<script src="https://lemma.app/widget.js"\n        data-listing-id="${listingId}"\n        data-position="hero"\n        async></script>`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(snippet);
+      onCopied();
+    } catch {
+      /* clipboard blocked — silently noop */
+    }
+  }
+
+  const active = EMBED_PLATFORMS.find((p) => p.id === tab) ?? EMBED_PLATFORMS[0];
+
+  return (
+    <section id="embed" className="px-8 pb-10 max-w-7xl mx-auto scroll-mt-24">
+      <div className="rounded-2xl ring-1 ring-cream/15 bg-cream/[0.02] p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.32em] text-cream/60 mb-1.5">
+              Embed in 60 seconds
+            </div>
+            <h2 className="font-display text-2xl md:text-3xl">
+              One line of code. <em className="italic text-bone/70">That's it.</em>
+            </h2>
+          </div>
+          <button
+            onClick={copy}
+            className="px-4 py-2 rounded-full bg-cream text-ink text-[11px] font-medium tracking-wide hover:bg-white transition flex items-center gap-1.5"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy snippet
+          </button>
+        </div>
+
+        {/* Platform tabs */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {EMBED_PLATFORMS.map((p) => {
+            const on = p.id === tab;
+            return (
+              <button
+                key={p.id}
+                onClick={() => setTab(p.id)}
+                className={`px-3 py-1.5 rounded-full text-[11px] tracking-wide ring-1 transition ${
+                  on
+                    ? "bg-cream/15 ring-cream/40 text-cream"
+                    : "ring-bone/15 text-bone/55 hover:text-cream hover:ring-bone/35"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Snippet */}
+        <pre className="rounded-xl bg-black/70 ring-1 ring-bone/10 p-5 md:p-6 font-mono text-[12.5px] leading-[1.85] overflow-x-auto whitespace-pre text-bone/85">
+{snippet}
+        </pre>
+
+        <div className="mt-4 text-xs text-bone/55 leading-relaxed">
+          <span className="text-cream/80">{active.label}:</span> {active.instr}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 // =========================================================================
@@ -331,7 +699,16 @@ function handleEvent(
 
     case "persona_start":
       pushLine("info", `── ${ev.persona} pipeline started`);
-      setPersonaStates((s) => ({ ...s, [ev.persona]: { ...s[ev.persona], status: "briefing" } }));
+      // Cached mp4 per archetype is known up-front — start playing it now while
+      // brief/script/QA continue in the trace below. Don't make the host wait.
+      setPersonaStates((s) => ({
+        ...s,
+        [ev.persona]: {
+          ...s[ev.persona],
+          status: "briefing",
+          videoUrl: s[ev.persona].videoUrl ?? ARCHETYPE_VIDEO[ev.persona],
+        },
+      }));
       break;
 
     case "persona_done":
